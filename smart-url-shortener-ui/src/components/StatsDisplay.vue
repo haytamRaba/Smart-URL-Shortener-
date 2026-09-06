@@ -10,16 +10,24 @@ const stats = ref(null)
 const loading = ref(false)
 const error = ref('')
 const expanded = ref(false)
+const notAvailable = ref(false)
 
 async function fetchStats() {
   if (!props.shortUrl) return
   loading.value = true
   error.value = ''
+  notAvailable.value = false
 
   try {
-    stats.value = await getUrlStats(props.shortUrl)
+    const data = await getUrlStats(props.shortUrl)
+    stats.value = data
   } catch (err) {
-    error.value = err.message
+    // 404 means stats endpoint doesn't exist on backend yet
+    if (err.message.includes('404') || err.message.includes('Not Found') || err.message.includes('Failed to fetch URL stats')) {
+      notAvailable.value = true
+    } else {
+      error.value = err.message
+    }
   } finally {
     loading.value = false
   }
@@ -31,7 +39,7 @@ watch(() => props.shortUrl, fetchStats)
 function formatNumber(n) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M'
   if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'K'
-  return String(n)
+  return String(n ?? 0)
 }
 
 function formatDate(dateStr) {
@@ -74,6 +82,20 @@ function formatDate(dateStr) {
           <span>Loading stats...</span>
         </div>
 
+        <!-- Not available (backend doesn't support stats yet) -->
+        <div v-else-if="notAvailable" class="stats__unavailable">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M16 16s-1.5-2-4-2-4 2-4 2" />
+            <line x1="9" x2="9.01" y1="9" y2="9" />
+            <line x1="15" x2="15.01" y1="9" y2="9" />
+          </svg>
+          <div class="stats__unavailable-text">
+            <strong>Stats coming soon</strong>
+            <span>Click tracking will be available once the backend adds this feature.</span>
+          </div>
+        </div>
+
         <!-- Error -->
         <div v-else-if="error" class="stats__error">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -82,6 +104,7 @@ function formatDate(dateStr) {
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <span>Could not load stats</span>
+          <button class="stats__retry" @click="fetchStats">Retry</button>
         </div>
 
         <!-- Stats content -->
@@ -193,6 +216,60 @@ function formatDate(dateStr) {
 
 .stats__error {
   color: var(--color-danger);
+}
+
+.stats__retry {
+  border: none;
+  background: var(--color-primary-ring);
+  color: var(--color-primary);
+  font-size: 0.75rem;
+  font-family: inherit;
+  font-weight: 600;
+  padding: 0.25rem 0.625rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stats__retry:hover {
+  background: var(--color-primary);
+  color: white;
+}
+
+/* Not available state */
+.stats__unavailable {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  margin: 0.75rem 0.25rem 0.25rem;
+  background: var(--color-surface-hover);
+  border-radius: 12px;
+  border: 1px dashed var(--color-border);
+}
+
+.stats__unavailable svg {
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+  margin-top: 0.125rem;
+}
+
+.stats__unavailable-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+}
+
+.stats__unavailable-text strong {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.stats__unavailable-text span {
+  color: var(--color-text-tertiary);
+  font-size: 0.75rem;
+  line-height: 1.4;
 }
 
 .stats__spinner {

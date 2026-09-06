@@ -1,12 +1,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import CopyButton from './CopyButton.vue'
-import StatsDisplay from './StatsDisplay.vue'
 
 const emit = defineEmits(['select'])
 
 const history = ref([])
-const expandedUrl = ref(null)
 
 onMounted(() => {
   loadHistory()
@@ -51,21 +49,18 @@ function updateClicks(shortUrl, count) {
 }
 
 function removeFromHistory(index) {
-  if (expandedUrl.value === history.value[index].shortUrl) {
-    expandedUrl.value = null
-  }
   history.value.splice(index, 1)
   saveHistory()
 }
 
 function clearHistory() {
   history.value = []
-  expandedUrl.value = null
   saveHistory()
 }
 
-function toggleStats(shortUrl) {
-  expandedUrl.value = expandedUrl.value === shortUrl ? null : shortUrl
+function openStats(shortUrl) {
+  const statsPageUrl = `${window.location.origin}${window.location.pathname}?stats=${encodeURIComponent(shortUrl)}`
+  window.open(statsPageUrl, '_blank', 'noopener,noreferrer,width=700,height=800')
 }
 
 function timeAgo(dateStr) {
@@ -101,7 +96,6 @@ defineExpose({ addToHistory, updateClicks })
         v-for="(item, index) in history"
         :key="item.shortUrl"
         class="history__item"
-        :class="{ 'history__item--expanded': expandedUrl === item.shortUrl }"
       >
         <div class="history__item-main">
           <div class="history__item-urls">
@@ -121,12 +115,9 @@ defineExpose({ addToHistory, updateClicks })
           <div class="history__item-meta">
             <button
               class="history__item-clicks"
-              :class="{
-                'history__item-clicks--active': item.clickCount > 0,
-                'history__item-clicks--selected': expandedUrl === item.shortUrl
-              }"
-              @click.stop="toggleStats(item.shortUrl)"
-              :title="expandedUrl === item.shortUrl ? 'Hide stats' : 'Show stats'"
+              :class="{ 'history__item-clicks--active': item.clickCount > 0 }"
+              @click.stop="openStats(item.shortUrl)"
+              title="Open stats in new window"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M18 20V10" />
@@ -135,8 +126,7 @@ defineExpose({ addToHistory, updateClicks })
               </svg>
               {{ item.clickCount }} clicks
               <svg
-                class="history__item-clicks-chevron"
-                :class="{ 'history__item-clicks-chevron--open': expandedUrl === item.shortUrl }"
+                class="history__item-clicks-external"
                 width="10"
                 height="10"
                 viewBox="0 0 24 24"
@@ -146,7 +136,9 @@ defineExpose({ addToHistory, updateClicks })
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
-                <path d="m6 9 6 6 6-6" />
+                <path d="M15 3h6v6" />
+                <path d="M10 14 21 3" />
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
               </svg>
             </button>
             <span class="history__item-time">{{ timeAgo(item.createdAt) }}</span>
@@ -162,13 +154,6 @@ defineExpose({ addToHistory, updateClicks })
             </svg>
           </button>
         </div>
-
-        <!-- Expanded stats panel -->
-        <Transition name="expand">
-          <div v-if="expandedUrl === item.shortUrl" class="history__item-stats">
-            <StatsDisplay :short-url="item.shortUrl" />
-          </div>
-        </Transition>
       </div>
     </TransitionGroup>
   </div>
@@ -228,7 +213,6 @@ defineExpose({ addToHistory, updateClicks })
 
 .history__item {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
@@ -241,11 +225,6 @@ defineExpose({ addToHistory, updateClicks })
 .history__item:hover {
   border-color: var(--color-border-hover);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.history__item--expanded {
-  border-color: var(--color-primary);
-  box-shadow: 0 2px 12px var(--color-primary-shadow);
 }
 
 .history__item-main {
@@ -288,7 +267,7 @@ defineExpose({ addToHistory, updateClicks })
   margin-top: 0.375rem;
 }
 
-/* Clicks badge - now a button */
+/* Clicks button */
 .history__item-clicks {
   display: inline-flex;
   align-items: center;
@@ -322,19 +301,14 @@ defineExpose({ addToHistory, updateClicks })
   color: white;
 }
 
-.history__item-clicks--selected {
-  background: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
-}
-
-.history__item-clicks-chevron {
-  transition: transform 0.2s ease;
+.history__item-clicks-external {
   margin-left: 0.125rem;
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
 }
 
-.history__item-clicks-chevron--open {
-  transform: rotate(180deg);
+.history__item-clicks:hover .history__item-clicks-external {
+  opacity: 1;
 }
 
 .history__item-time {
@@ -367,13 +341,6 @@ defineExpose({ addToHistory, updateClicks })
   color: var(--color-danger);
 }
 
-/* Stats panel inside history item */
-.history__item-stats {
-  width: 100%;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--color-border);
-}
-
 /* List transitions */
 .list-enter-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -395,27 +362,5 @@ defineExpose({ addToHistory, updateClicks })
 
 .list-move {
   transition: transform 0.3s ease;
-}
-
-/* Expand transition for stats */
-.expand-enter-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.expand-leave-active {
-  transition: all 0.2s ease;
-}
-
-.expand-enter-from,
-.expand-leave-to {
-  opacity: 0;
-  max-height: 0;
-  padding-top: 0;
-  transform: translateY(-4px);
-}
-
-.expand-enter-to,
-.expand-leave-from {
-  max-height: 300px;
 }
 </style>
