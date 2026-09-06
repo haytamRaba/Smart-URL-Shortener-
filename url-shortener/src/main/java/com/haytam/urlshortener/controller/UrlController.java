@@ -37,15 +37,5 @@ public class UrlController {
         );
     }
 
-    @GetMapping("/{shortCode}")
-    public ResponseEntity<Void> redirect(
-            @PathVariable String shortCode
-    ) {
-        Url url = urlService.getByShortCode(shortCode);
 
-        return ResponseEntity
-                .status(HttpStatus.FOUND)
-                .location(URI.create(url.getOriginalUrl()))
-                .build();
-    }
 }
