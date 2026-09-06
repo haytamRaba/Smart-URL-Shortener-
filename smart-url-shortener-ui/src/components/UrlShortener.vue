@@ -4,7 +4,6 @@ import { createShortUrl } from '../services/urlApi.js'
 import BaseButton from './BaseButton.vue'
 import CopyButton from './CopyButton.vue'
 import ShareButtons from './ShareButtons.vue'
-import SuggestionChips from './SuggestionChips.vue'
 import ThemeToggle from './ThemeToggle.vue'
 
 const originalUrl = ref('')
@@ -31,9 +30,7 @@ async function handleSubmit() {
   }
 }
 
-function handleSuggestion(url) {
-  originalUrl.value = url
-}
+
 
 function reset() {
   result.value = null
