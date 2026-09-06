@@ -179,7 +179,7 @@ function reset() {
     </main>
 
     <footer class="footer">
-      <p>Built with Vue 3 · Clean · Fast</p>
+      <p>Stats · Clean · Fast</p>
     </footer>
   </div>
 </template>
