@@ -1,7 +1,6 @@
 const API_URL = import.meta.env.VITE_API_URL
 
 export async function createShortUrl(originalUrl) {
-
     const response = await fetch(`${API_URL}/api/v1/urls`, {
         method: 'POST',
         headers: {
@@ -12,9 +11,38 @@ export async function createShortUrl(originalUrl) {
         })
     })
 
-
     if (!response.ok) {
         throw new Error('Failed to create short URL')
+    }
+
+    return response.json()
+}
+
+export async function getUrlStats(shortUrl) {
+    const response = await fetch(`${API_URL}/api/v1/urls/stats?shortUrl=${encodeURIComponent(shortUrl)}`)
+
+    if (!response.ok) {
+        throw new Error('Failed to fetch URL stats')
+    }
+
+    return response.json()
+}
+
+export async function getUrlStatsById(id) {
+    const response = await fetch(`${API_URL}/api/v1/urls/${id}/stats`)
+
+    if (!response.ok) {
+        throw new Error('Failed to fetch URL stats')
+    }
+
+    return response.json()
+}
+
+export async function getAllUrls() {
+    const response = await fetch(`${API_URL}/api/v1/urls`)
+
+    if (!response.ok) {
+        throw new Error('Failed to fetch URLs')
     }
 
     return response.json()

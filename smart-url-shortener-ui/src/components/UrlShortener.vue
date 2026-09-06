@@ -1,17 +1,27 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { createShortUrl } from '../services/urlApi.js'
 import BaseButton from './BaseButton.vue'
 import CopyButton from './CopyButton.vue'
 import ShareButtons from './ShareButtons.vue'
 import ThemeToggle from './ThemeToggle.vue'
+import SuggestionChips from './SuggestionChips.vue'
+import StatsDisplay from './StatsDisplay.vue'
+import UrlHistory from './UrlHistory.vue'
 
 const originalUrl = ref('')
 const result = ref(null)
 const error = ref('')
 const loading = ref(false)
+const historyRef = ref(null)
 
-
+const suggestions = [
+  { label: 'GitHub', url: 'https://github.com', icon: 'link' },
+  { label: 'YouTube', url: 'https://youtube.com', icon: 'trending' },
+  { label: 'Twitter / X', url: 'https://x.com', icon: 'link' },
+  { label: 'Medium', url: 'https://medium.com', icon: 'link' },
+  { label: 'Product Hunt', url: 'https://producthunt.com', icon: 'trending' },
+]
 
 const shortUrlDisplay = computed(() => result.value?.shortUrl || '')
 
@@ -22,7 +32,16 @@ async function handleSubmit() {
   loading.value = true
 
   try {
-    result.value = await createShortUrl(originalUrl.value)
+    const res = await createShortUrl(originalUrl.value)
+    result.value = res
+
+    // Add to history
+    await nextTick()
+    historyRef.value?.addToHistory({
+      shortUrl: res.shortUrl,
+      originalUrl: res.originalUrl ?? originalUrl.value,
+      clickCount: res.clickCount ?? 0
+    })
   } catch (err) {
     error.value = err.message
   } finally {
@@ -30,7 +49,9 @@ async function handleSubmit() {
   }
 }
 
-
+function handleSuggestion(url) {
+  originalUrl.value = url
+}
 
 function reset() {
   result.value = null
@@ -91,7 +112,10 @@ function reset() {
           </BaseButton>
         </form>
 
-       
+        <SuggestionChips
+          :suggestions="suggestions"
+          @select="handleSuggestion"
+        />
       </div>
 
       <Transition name="fade">
@@ -133,6 +157,9 @@ function reset() {
             </a>
           </div>
 
+          <!-- Stats -->
+          <StatsDisplay :short-url="shortUrlDisplay" />
+
           <div class="result-card__actions">
             <CopyButton :text="shortUrlDisplay" />
             <ShareButtons :url="shortUrlDisplay" title="Check out this link!" />
@@ -146,10 +173,13 @@ function reset() {
           </div>
         </div>
       </Transition>
+
+      <!-- History -->
+      <UrlHistory ref="historyRef" />
     </main>
 
     <footer class="footer">
-      <p>statistics · Clean · Fast</p>
+      <p>Built with Vue 3 · Clean · Fast</p>
     </footer>
   </div>
 </template>
