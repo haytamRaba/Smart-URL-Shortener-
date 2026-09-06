@@ -22,8 +22,8 @@ async function fetchStats() {
     const data = await getUrlStats(props.shortUrl)
     stats.value = data
   } catch (err) {
-    // 404 means stats endpoint doesn't exist on backend yet
-    if (err.message.includes('404') || err.message.includes('Not Found') || err.message.includes('Failed to fetch URL stats')) {
+    console.error('Stats error:', err)
+    if (err.message.includes('404') || err.message.includes('Not Found')) {
       notAvailable.value = true
     } else {
       error.value = err.message
@@ -112,9 +112,17 @@ function formatDate(dateStr) {
           <!-- Click counter -->
           <div class="stats__clicks">
             <div class="stats__clicks-number">
-              {{ formatNumber(stats.clickCount ?? stats.clicks ?? stats.totalClicks ?? 0) }}
+              {{ formatNumber(stats.totalClicks ?? stats.clickCount ?? stats.clicks ?? 0) }}
             </div>
             <div class="stats__clicks-label">total clicks</div>
+          </div>
+
+          <!-- Unique visitors -->
+          <div v-if="stats.uniqueVisitors != null && stats.uniqueVisitors !== undefined" class="stats__unique">
+            <div class="stats__unique-number">
+              {{ formatNumber(stats.uniqueVisitors) }}
+            </div>
+            <div class="stats__unique-label">unique visitors</div>
           </div>
 
           <!-- Meta info -->
@@ -363,6 +371,31 @@ function formatDate(dateStr) {
 .stats__refresh:hover {
   background: var(--color-surface-hover);
   color: var(--color-text);
+}
+
+/* Unique visitors */
+.stats__unique {
+  text-align: center;
+  padding: 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+}
+
+.stats__unique-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.stats__unique-label {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 /* Expand transition */

@@ -19,13 +19,25 @@ export async function createShortUrl(originalUrl) {
 }
 
 export async function getUrlStats(shortUrl) {
-    const response = await fetch(`${API_URL}/api/v1/urls/stats?shortUrl=${encodeURIComponent(shortUrl)}`)
-
-    if (!response.ok) {
-        throw new Error('Failed to fetch URL stats')
+    let shortCode = ''
+    try {
+        const urlObj = new URL(shortUrl)
+        shortCode = urlObj.pathname.replace(/^\//, '')
+    } catch {
+        shortCode = shortUrl.replace(/^\//, '')
     }
 
-    return response.json()
+    const statsUrl = `${API_URL}/api/v1/urls/${encodeURIComponent(shortCode)}/statistics`
+
+    const response = await fetch(statsUrl)
+
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => '')
+        throw new Error(`Failed to fetch URL stats: ${response.status} ${response.statusText}${errorText ? ' - ' + errorText : ''}`)
+    }
+
+    const data = await response.json()
+    return data
 }
 
 export async function getUrlStatsById(id) {

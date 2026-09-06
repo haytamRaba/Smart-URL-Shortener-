@@ -27,7 +27,8 @@ async function fetchStats() {
     const data = await getUrlStats(props.shortUrl)
     stats.value = data
   } catch (err) {
-    if (err.message.includes('404') || err.message.includes('Not Found') || err.message.includes('Failed to fetch URL stats')) {
+    console.error('Stats error:', err)
+    if (err.message.includes('404') || err.message.includes('Not Found')) {
       notAvailable.value = true
     } else {
       error.value = err.message
@@ -121,9 +122,25 @@ function formatDateTime(dateStr) {
         <div class="stats-page__hero">
           <div class="stats-page__counter">
             <span class="stats-page__counter-number">
-              {{ formatNumber(stats.clickCount ?? stats.clicks ?? stats.totalClicks ?? 0) }}
+              {{ formatNumber(stats.totalClicks ?? stats.clickCount ?? stats.clicks ?? 0) }}
             </span>
             <span class="stats-page__counter-label">total clicks</span>
+          </div>
+        </div>
+
+        <!-- Unique visitors -->
+        <div v-if="stats.uniqueVisitors != null && stats.uniqueVisitors !== undefined" class="stats-page__unique">
+          <div class="stats-page__unique-card">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            <div>
+              <span class="stats-page__unique-label">Unique visitors</span>
+              <span class="stats-page__unique-value">{{ formatNumber(stats.uniqueVisitors) }}</span>
+            </div>
           </div>
         </div>
 
@@ -465,6 +482,44 @@ function formatDateTime(dateStr) {
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
+  color: var(--color-text);
+  margin-top: 0.125rem;
+}
+
+/* Unique visitors card */
+.stats-page__unique {
+  display: flex;
+  justify-content: center;
+}
+
+.stats-page__unique-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+}
+
+.stats-page__unique-card svg {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.stats-page__unique-label {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+
+.stats-page__unique-value {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
   color: var(--color-text);
   margin-top: 0.125rem;
 }
