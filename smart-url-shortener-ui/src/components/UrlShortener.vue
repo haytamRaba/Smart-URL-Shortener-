@@ -175,7 +175,10 @@ function reset() {
       </Transition>
 
       <!-- History -->
-      <UrlHistory ref="historyRef" />
+      <!-- History -->
+      <section class="history-section">
+        <UrlHistory ref="historyRef" />
+      </section>
     </main>
 
     <footer class="footer">
@@ -201,7 +204,7 @@ function reset() {
 
 .header__inner {
   width: 100%;
-  max-width: 640px;
+  max-width: 720px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -224,7 +227,7 @@ function reset() {
 .main {
   flex: 1;
   width: 100%;
-  max-width: 640px;
+  max-width: 720px;
   padding: 2rem 1.5rem 4rem;
   display: flex;
   flex-direction: column;
@@ -404,6 +407,11 @@ function reset() {
   text-align: center;
   font-size: 0.8125rem;
   color: var(--color-text-tertiary);
+}
+
+.history-section {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border);
 }
 
 .fade-enter-active,

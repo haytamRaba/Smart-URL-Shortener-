@@ -47,6 +47,11 @@ function formatDate(dateStr) {
   const d = new Date(dateStr)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
+
+function openFullStats() {
+  const statsPageUrl = `${window.location.origin}${window.location.pathname}?stats=${encodeURIComponent(props.shortUrl)}`
+  window.open(statsPageUrl, '_blank', 'noopener,noreferrer')
+}
 </script>
 
 <template>
@@ -152,14 +157,24 @@ function formatDate(dateStr) {
             </div>
           </div>
 
-          <!-- Refresh -->
-          <button class="stats__refresh" @click="fetchStats">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 4 23 10 17 10" />
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-            </svg>
-            Refresh
-          </button>
+          <!-- Footer actions -->
+          <div class="stats__footer">
+            <button class="stats__refresh" @click="fetchStats">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              Refresh
+            </button>
+            <button class="stats__full-link" @click="openFullStats">
+              View full stats
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 3h6v6" />
+                <path d="M10 14 21 3" />
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </Transition>
@@ -371,6 +386,33 @@ function formatDate(dateStr) {
 .stats__refresh:hover {
   background: var(--color-surface-hover);
   color: var(--color-text);
+}
+
+.stats__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.stats__full-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 0.75rem;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.stats__full-link:hover {
+  background: var(--color-primary-ring);
 }
 
 /* Unique visitors */

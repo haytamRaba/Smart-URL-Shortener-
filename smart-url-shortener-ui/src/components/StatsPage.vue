@@ -1,9 +1,10 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { getUrlStats } from '../services/urlApi.js'
 import BaseButton from './BaseButton.vue'
 import CopyButton from './CopyButton.vue'
 import ShareButtons from './ShareButtons.vue'
+import ClicksChart from './ClicksChart.vue'
 
 const props = defineProps({
   shortUrl: { type: String, required: true }
@@ -13,13 +14,32 @@ const emit = defineEmits(['close'])
 
 const stats = ref(null)
 const loading = ref(true)
+const refreshing = ref(false)
 const error = ref('')
 const notAvailable = ref(false)
 
-onMounted(fetchStats)
+const POLL_INTERVAL_MS = 15000
+let pollTimer = null
 
-async function fetchStats() {
-  loading.value = true
+onMounted(() => {
+  fetchStats()
+  pollTimer = setInterval(poll, POLL_INTERVAL_MS)
+})
+
+onBeforeUnmount(() => {
+  if (pollTimer) clearInterval(pollTimer)
+})
+
+/* Background refresh — keeps the chart/KPIs live without a full reload */
+function poll() {
+  if (document.hidden) return
+  if (loading.value || notAvailable.value || error.value) return
+  fetchStats(true)
+}
+
+async function fetchStats(silent = false) {
+  if (silent) refreshing.value = true
+  else loading.value = true
   error.value = ''
   notAvailable.value = false
 
@@ -30,13 +50,34 @@ async function fetchStats() {
     console.error('Stats error:', err)
     if (err.message.includes('404') || err.message.includes('Not Found')) {
       notAvailable.value = true
-    } else {
+    } else if (!silent) {
       error.value = err.message
     }
   } finally {
     loading.value = false
+    refreshing.value = false
   }
 }
+
+const totalClicks = computed(() => Number(stats.value?.totalClicks ?? 0))
+const uniqueVisitors = computed(() => Number(stats.value?.uniqueVisitors ?? 0))
+const dailyClicks = computed(() =>
+  Array.isArray(stats.value?.dailyClicks) ? stats.value.dailyClicks : []
+)
+
+const chartHasData = computed(() => dailyClicks.value.some((d) => Number(d.clicks) > 0))
+
+const clicks30 = computed(() =>
+  dailyClicks.value.reduce((sum, d) => sum + (Number(d.clicks) || 0), 0)
+)
+
+const activeDays = computed(
+  () => dailyClicks.value.filter((d) => Number(d.clicks) > 0).length
+)
+
+const avgPerActiveDay = computed(() =>
+  activeDays.value > 0 ? Math.round((clicks30.value / activeDays.value) * 10) / 10 : 0
+)
 
 function formatNumber(n) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M'
@@ -47,12 +88,14 @@ function formatNumber(n) {
 function formatDate(dateStr) {
   if (!dateStr) return '—'
   const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function formatDateTime(dateStr) {
   if (!dateStr) return '—'
   const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
@@ -96,10 +139,10 @@ function formatDateTime(dateStr) {
             <path d="M12 20V4" />
             <path d="M6 20v-6" />
           </svg>
-          <h2>Stats Coming Soon</h2>
-          <p>Click tracking will be available once the backend adds the stats endpoint.</p>
+          <h2>No stats yet</h2>
+          <p>Stats for this link are not available. It may not exist or hasn't been clicked yet.</p>
           <div class="stats-page__coming-soon-info">
-            <code>GET /api/v1/urls/stats</code>
+            <code>GET /api/v1/urls/{shortCode}/statistics</code>
           </div>
         </div>
         <BaseButton variant="secondary" size="md" @click="fetchStats">Retry</BaseButton>
@@ -116,114 +159,94 @@ function formatDateTime(dateStr) {
         <BaseButton variant="secondary" size="md" @click="fetchStats">Try again</BaseButton>
       </div>
 
-      <!-- Stats -->
+      <!-- Content -->
       <div v-else-if="stats" class="stats-page__content">
-        <!-- Hero counter -->
-        <div class="stats-page__hero">
-          <div class="stats-page__counter">
-            <span class="stats-page__counter-number">
-              {{ formatNumber(stats.totalClicks ?? stats.clickCount ?? stats.clicks ?? 0) }}
-            </span>
-            <span class="stats-page__counter-label">total clicks</span>
-          </div>
+        <div class="live-badge" :class="{ 'live-badge--refreshing': refreshing }">
+          <span class="live-badge__dot" />
         </div>
 
-        <!-- Unique visitors -->
-        <div v-if="stats.uniqueVisitors != null && stats.uniqueVisitors !== undefined" class="stats-page__unique">
-          <div class="stats-page__unique-card">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-            <div>
-              <span class="stats-page__unique-label">Unique visitors</span>
-              <span class="stats-page__unique-value">{{ formatNumber(stats.uniqueVisitors) }}</span>
+        <!-- Section: Link overview -->
+        <section class="stats-section">
+          <h4 class="stats-section__title">Link</h4>
+          <div class="stats-section__card">
+            <div class="link-rows">
+              <div class="link-rows__row">
+                <span class="link-rows__label">Short URL</span>
+                <a :href="shortUrl" target="_blank" rel="noopener noreferrer" class="link-rows__value link-rows__value--link">
+                  {{ shortUrl }}
+                </a>
+              </div>
+              <div class="link-rows__divider" />
+              <div class="link-rows__row">
+                <span class="link-rows__label">Original URL</span>
+                <span class="link-rows__value link-rows__value--truncate" :title="stats.originalUrl">
+                  {{ stats.originalUrl || '—' }}
+                </span>
+              </div>
+              <div class="link-rows__divider" />
+              <div class="link-rows__row">
+                <span class="link-rows__label">Created</span>
+                <span class="link-rows__value">{{ formatDate(stats.createdAt) }}</span>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        <!-- Link info card -->
-        <div class="stats-page__card">
-          <div class="stats-page__card-row">
-            <span class="stats-page__card-label">Short URL</span>
-            <div class="stats-page__card-value">
-              <a :href="shortUrl" target="_blank" rel="noopener noreferrer" class="stats-page__link">
-                {{ shortUrl }}
-              </a>
+        <!-- Section: KPI cards -->
+        <section class="stats-section">
+          <h4 class="stats-section__title">Overview</h4>
+          <div class="kpi-grid">
+            <div class="kpi kpi--primary">
+              <span class="kpi__value kpi__value--primary">{{ formatNumber(totalClicks) }}</span>
+              <span class="kpi__label">Total clicks</span>
+            </div>
+            <div class="kpi">
+              <span class="kpi__value">{{ formatNumber(uniqueVisitors) }}</span>
+              <span class="kpi__label">Unique visitors</span>
+            </div>
+            <div class="kpi">
+              <span class="kpi__value">{{ formatNumber(clicks30) }}</span>
+              <span class="kpi__label">Clicks · 30d</span>
+            </div>
+            <div class="kpi">
+              <span class="kpi__value">{{ formatNumber(avgPerActiveDay) }}</span>
+              <span class="kpi__label">Avg / active day</span>
             </div>
           </div>
-          <div class="stats-page__card-divider" />
-          <div class="stats-page__card-row">
-            <span class="stats-page__card-label">Original URL</span>
-            <div class="stats-page__card-value stats-page__card-value--truncate" :title="stats.originalUrl">
-              {{ stats.originalUrl || '—' }}
-            </div>
-          </div>
-        </div>
+        </section>
 
-        <!-- Details grid -->
-        <div class="stats-page__grid">
-          <div class="stats-page__detail">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-              <line x1="16" x2="16" y1="2" y2="6" />
-              <line x1="8" x2="8" y1="2" y2="6" />
-              <line x1="3" x2="21" y1="10" y2="10" />
-            </svg>
-            <div>
-              <span class="stats-page__detail-label">Created</span>
-              <span class="stats-page__detail-value">{{ formatDate(stats.createdAt ?? stats.created) }}</span>
+        <!-- Section: Chart -->
+        <section class="stats-section">
+          <h4 class="stats-section__title">Activity</h4>
+          <div class="stats-section__card">
+            <ClicksChart v-if="chartHasData" :data="dailyClicks" />
+            <div v-else class="chart-placeholder">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 20V10" /><path d="M12 20V4" /><path d="M6 20v-6" />
+              </svg>
+              <span>No clicks in the last 30 days — share your link to see activity here.</span>
             </div>
           </div>
+        </section>
 
-          <div class="stats-page__detail" v-if="stats.lastClickedAt || stats.lastClick">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-            <div>
-              <span class="stats-page__detail-label">Last clicked</span>
-              <span class="stats-page__detail-value">{{ formatDateTime(stats.lastClickedAt ?? stats.lastClick) }}</span>
+        <!-- Section: Recent activity -->
+        <section v-if="stats.lastClickAt" class="stats-section">
+          <h4 class="stats-section__title">Latest</h4>
+          <div class="stats-section__card">
+            <div class="latest-row">
+              <div class="latest-row__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </div>
+              <div>
+                <span class="latest-row__label">Last clicked</span>
+                <span class="latest-row__value">{{ formatDateTime(stats.lastClickAt) }}</span>
+              </div>
             </div>
           </div>
-
-          <div class="stats-page__detail" v-if="stats.referrer || stats.referer">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M15 3h6v6" />
-              <path d="M10 14 21 3" />
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-            </svg>
-            <div>
-              <span class="stats-page__detail-label">Top referrer</span>
-              <span class="stats-page__detail-value">{{ stats.referrer || stats.referer }}</span>
-            </div>
-          </div>
-
-          <div class="stats-page__detail" v-if="stats.browser">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="2" x2="22" y1="12" y2="12" />
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-            </svg>
-            <div>
-              <span class="stats-page__detail-label">Browser</span>
-              <span class="stats-page__detail-value">{{ stats.browser }}</span>
-            </div>
-          </div>
-
-          <div class="stats-page__detail" v-if="stats.country">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-            <div>
-              <span class="stats-page__detail-label">Country</span>
-              <span class="stats-page__detail-value">{{ stats.country }}</span>
-            </div>
-          </div>
-        </div>
+        </section>
 
         <!-- Actions -->
         <div class="stats-page__actions">
@@ -259,7 +282,7 @@ function formatDateTime(dateStr) {
 }
 
 .stats-page__header-inner {
-  max-width: 640px;
+  max-width: 720px;
   margin: 0 auto;
   padding: 0.875rem 1.5rem;
   display: flex;
@@ -284,7 +307,7 @@ function formatDateTime(dateStr) {
 .stats-page__main {
   flex: 1;
   width: 100%;
-  max-width: 640px;
+  max-width: 720px;
   padding: 2rem 1.5rem 4rem;
 }
 
@@ -300,7 +323,6 @@ function formatDateTime(dateStr) {
   color: var(--color-text-secondary);
 }
 
-/* Coming soon */
 .stats-page__coming-soon {
   display: flex;
   flex-direction: column;
@@ -320,10 +342,6 @@ function formatDateTime(dateStr) {
   color: var(--color-text-secondary);
   max-width: 400px;
   line-height: 1.5;
-}
-
-.stats-page__coming-soon-info {
-  margin-top: 0.5rem;
 }
 
 .stats-page__coming-soon-info code {
@@ -359,58 +377,77 @@ function formatDateTime(dateStr) {
 .stats-page__content {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.75rem;
 }
 
-/* Hero counter */
-.stats-page__hero {
-  text-align: center;
-  padding: 2.5rem 1rem;
-  background: linear-gradient(135deg, var(--color-primary-ring), transparent);
-  border: 1px solid var(--color-primary-ring);
-  border-radius: 20px;
+/* Live badge */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  align-self: flex-start;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
 }
 
-.stats-page__counter {
+.live-badge__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+.live-badge--refreshing .live-badge__dot {
+  animation-duration: 0.6s;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--color-primary-ring); }
+  50% { opacity: 0.5; box-shadow: 0 0 0 4px var(--color-primary-ring); }
+}
+
+/* Sections */
+.stats-section {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.625rem;
 }
 
-.stats-page__counter-number {
-  font-size: 4rem;
-  font-weight: 700;
-  color: var(--color-primary);
-  line-height: 1;
-  letter-spacing: -0.04em;
-}
-
-.stats-page__counter-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text-secondary);
+.stats-section__title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
 }
 
-/* Card */
-.stats-page__card {
+.stats-section__card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Link rows */
+.link-rows {
   display: flex;
   flex-direction: column;
 }
 
-.stats-page__card-row {
+.link-rows__row {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.5rem 0;
 }
 
-.stats-page__card-label {
+.link-rows__label {
   font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -418,110 +455,126 @@ function formatDateTime(dateStr) {
   color: var(--color-text-tertiary);
 }
 
-.stats-page__card-value {
+.link-rows__value {
   font-size: 0.9375rem;
   color: var(--color-text);
+  word-break: break-all;
 }
 
-.stats-page__card-value--truncate {
+.link-rows__value--link {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.link-rows__value--link:hover {
+  text-decoration: underline;
+}
+
+.link-rows__value--truncate {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.stats-page__card-divider {
+.link-rows__divider {
   height: 1px;
   background: var(--color-border);
-  margin: 0.25rem 0;
 }
 
-.stats-page__link {
-  color: var(--color-primary);
-  font-weight: 600;
-  text-decoration: none;
-  word-break: break-all;
-}
-
-.stats-page__link:hover {
-  text-decoration: underline;
-}
-
-/* Details grid */
-.stats-page__grid {
+/* KPI grid */
+.kpi-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.75rem;
 }
 
-.stats-page__detail {
+.kpi {
   display: flex;
-  align-items: flex-start;
-  gap: 0.625rem;
-  padding: 1rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-}
-
-.stats-page__detail svg {
-  flex-shrink: 0;
-  color: var(--color-text-tertiary);
-  margin-top: 0.125rem;
-}
-
-.stats-page__detail-label {
-  display: block;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-tertiary);
-}
-
-.stats-page__detail-value {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-text);
-  margin-top: 0.125rem;
-}
-
-/* Unique visitors card */
-.stats-page__unique {
-  display: flex;
-  justify-content: center;
-}
-
-.stats-page__unique-card {
-  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
+  gap: 0.25rem;
+  padding: 1.125rem 0.75rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
+  text-align: center;
 }
 
-.stats-page__unique-card svg {
-  color: var(--color-primary);
-  flex-shrink: 0;
+.kpi--primary {
+  background: linear-gradient(135deg, var(--color-primary-ring), transparent);
+  border-color: var(--color-primary-ring);
 }
 
-.stats-page__unique-label {
-  display: block;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-text-tertiary);
-}
-
-.stats-page__unique-value {
-  display: block;
-  font-size: 1.25rem;
+.kpi__value {
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-text);
-  margin-top: 0.125rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.kpi__value--primary {
+  font-size: 1.875rem;
+  color: var(--color-primary);
+}
+
+.kpi__label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+}
+
+/* Chart placeholder */
+.chart-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+/* Latest row */
+.latest-row {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.latest-row__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--color-primary-ring);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.latest-row__label {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+}
+
+.latest-row__value {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 /* Actions */
@@ -530,16 +583,12 @@ function formatDateTime(dateStr) {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
-  padding-top: 0.5rem;
+  padding-top: 0.25rem;
 }
 
-@media (max-width: 480px) {
-  .stats-page__grid {
-    grid-template-columns: 1fr;
-  }
-
-  .stats-page__counter-number {
-    font-size: 3rem;
+@media (max-width: 640px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>

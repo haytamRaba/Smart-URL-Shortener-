@@ -32,7 +32,7 @@ function addToHistory(item) {
     shortUrl: item.shortUrl,
     originalUrl: item.originalUrl,
     clickCount: item.clickCount ?? 0,
-    createdAt: new Date().toISOString()
+    createdAt: item.createdAt ?? new Date().toISOString()
   })
   if (history.value.length > 20) {
     history.value = history.value.slice(0, 20)
@@ -58,9 +58,18 @@ function clearHistory() {
   saveHistory()
 }
 
+/* Open the in-app stats view in a new browser tab (not a popup window) */
 function openStats(shortUrl) {
   const statsPageUrl = `${window.location.origin}${window.location.pathname}?stats=${encodeURIComponent(shortUrl)}`
-  window.open(statsPageUrl, '_blank', 'noopener,noreferrer,width=700,height=800')
+  window.open(statsPageUrl, '_blank', 'noopener,noreferrer')
+}
+
+function hostOf(url) {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
 }
 
 function timeAgo(dateStr) {
@@ -72,7 +81,9 @@ function timeAgo(dateStr) {
   const hours = Math.floor(mins / 60)
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  if (days < 7) return `${days}d ago`
+  const weeks = Math.floor(days / 7)
+  return `${weeks}w ago`
 }
 
 defineExpose({ addToHistory, updateClicks })
@@ -88,6 +99,7 @@ defineExpose({ addToHistory, updateClicks })
         </svg>
         Recent Links
       </h3>
+      <span class="history__count">{{ history.length }} link{{ history.length === 1 ? '' : 's' }}</span>
       <button class="history__clear" @click="clearHistory">Clear all</button>
     </div>
 
@@ -97,60 +109,69 @@ defineExpose({ addToHistory, updateClicks })
         :key="item.shortUrl"
         class="history__item"
       >
-        <div class="history__item-main">
-          <div class="history__item-urls">
-            <a
-              :href="item.shortUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="history__item-short"
-            >
-              {{ item.shortUrl }}
-            </a>
-            <span class="history__item-original" :title="item.originalUrl">
-              {{ item.originalUrl }}
-            </span>
-          </div>
+        <!-- Favicon-style avatar from destination host -->
+        <a
+          :href="item.shortUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="history__avatar"
+          :title="hostOf(item.originalUrl)"
+        >
+          {{ (hostOf(item.originalUrl) || '?').charAt(0).toUpperCase() }}
+        </a>
 
-          <div class="history__item-meta">
+        <div class="history__body">
+          <a
+            :href="item.shortUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="history__short"
+          >
+            {{ item.shortUrl }}
+          </a>
+          <span class="history__original" :title="item.originalUrl">
+            {{ hostOf(item.originalUrl) }} · {{ item.originalUrl }}
+          </span>
+
+          <div class="history__meta">
             <button
-              class="history__item-clicks"
-              :class="{ 'history__item-clicks--active': item.clickCount > 0 }"
+              class="history__stats-btn"
               @click.stop="openStats(item.shortUrl)"
-              title="Open stats in new window"
+              title="Open stats in new tab"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M18 20V10" />
                 <path d="M12 20V4" />
                 <path d="M6 20v-6" />
               </svg>
-              {{ item.clickCount }} clicks
-              <svg
-                class="history__item-clicks-external"
-                width="10"
-                height="10"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M15 3h6v6" />
-                <path d="M10 14 21 3" />
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              </svg>
+              {{ item.clickCount }} click{{ item.clickCount === 1 ? '' : 's' }}
             </button>
-            <span class="history__item-time">{{ timeAgo(item.createdAt) }}</span>
+            <span class="history__dot">·</span>
+            <span class="history__time">{{ timeAgo(item.createdAt) }}</span>
           </div>
         </div>
 
-        <div class="history__item-actions">
+        <div class="history__actions">
+          <button
+            class="history__icon-btn"
+            title="View stats"
+            @click.stop="openStats(item.shortUrl)"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 20V10" />
+              <path d="M12 20V4" />
+              <path d="M6 20v-6" />
+            </svg>
+          </button>
           <CopyButton :text="item.shortUrl" size="sm" />
-          <button class="history__item-remove" title="Remove" @click="removeFromHistory(index)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" x2="6" y1="6" y2="18" />
-              <line x1="6" x2="18" y1="6" y2="18" />
+          <button
+            class="history__icon-btn history__icon-btn--danger"
+            title="Remove"
+            @click="removeFromHistory(index)"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
             </svg>
           </button>
         </div>
@@ -167,10 +188,11 @@ defineExpose({ addToHistory, updateClicks })
   gap: 0.75rem;
 }
 
+/* Header */
 .history__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.625rem;
 }
 
 .history__title {
@@ -181,10 +203,20 @@ defineExpose({ addToHistory, updateClicks })
   font-weight: 600;
   color: var(--color-text);
   margin: 0;
+  margin-right: auto;
 }
 
 .history__title svg {
   color: var(--color-text-tertiary);
+}
+
+.history__count {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  padding: 0.125rem 0.5rem;
+  background: var(--color-surface-hover);
+  border-radius: 100px;
 }
 
 .history__clear {
@@ -197,7 +229,7 @@ defineExpose({ addToHistory, updateClicks })
   cursor: pointer;
   padding: 0.25rem 0.5rem;
   border-radius: 6px;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
 }
 
 .history__clear:hover {
@@ -205,6 +237,7 @@ defineExpose({ addToHistory, updateClicks })
   color: var(--color-danger);
 }
 
+/* List */
 .history__list {
   display: flex;
   flex-direction: column;
@@ -214,31 +247,46 @@ defineExpose({ addToHistory, updateClicks })
 .history__item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 14px;
-  transition: all 0.2s ease;
+  border-radius: var(--radius-lg);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
 }
 
 .history__item:hover {
   border-color: var(--color-border-hover);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-sm);
 }
 
-.history__item-main {
+/* Avatar */
+.history__avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, var(--color-primary-ring), transparent);
+  border: 1px solid var(--color-primary-ring);
+  color: var(--color-primary);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+/* Body */
+.history__body {
   flex: 1;
   min-width: 0;
-}
-
-.history__item-urls {
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
 }
 
-.history__item-short {
+.history__short {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-primary);
@@ -246,13 +294,15 @@ defineExpose({ addToHistory, updateClicks })
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  width: fit-content;
+  max-width: 100%;
 }
 
-.history__item-short:hover {
+.history__short:hover {
   text-decoration: underline;
 }
 
-.history__item-original {
+.history__original {
   font-size: 0.75rem;
   color: var(--color-text-tertiary);
   overflow: hidden;
@@ -260,83 +310,73 @@ defineExpose({ addToHistory, updateClicks })
   white-space: nowrap;
 }
 
-.history__item-meta {
+/* Meta row */
+.history__meta {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-top: 0.375rem;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
 }
 
-/* Clicks button */
-.history__item-clicks {
+.history__stats-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   font-family: inherit;
   color: var(--color-text-tertiary);
-  padding: 0.1875rem 0.625rem;
+  padding: 0.125rem 0.5rem;
   background: var(--color-surface-hover);
-  border: 1.5px solid transparent;
+  border: none;
   border-radius: 100px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  line-height: 1.4;
+  transition: all var(--transition-fast);
 }
 
-.history__item-clicks:hover {
+.history__stats-btn:hover {
   background: var(--color-primary-ring);
   color: var(--color-primary);
-  border-color: var(--color-primary);
 }
 
-.history__item-clicks--active {
-  color: var(--color-primary);
-  background: var(--color-primary-ring);
-}
-
-.history__item-clicks--active:hover {
-  background: var(--color-primary);
-  color: white;
-}
-
-.history__item-clicks-external {
-  margin-left: 0.125rem;
-  opacity: 0.6;
-  transition: opacity 0.15s ease;
-}
-
-.history__item-clicks:hover .history__item-clicks-external {
-  opacity: 1;
-}
-
-.history__item-time {
+.history__dot {
   font-size: 0.6875rem;
   color: var(--color-text-tertiary);
 }
 
-.history__item-actions {
+.history__time {
+  font-size: 0.6875rem;
+  color: var(--color-text-tertiary);
+}
+
+/* Actions */
+.history__actions {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  flex-shrink: 0;
 }
 
-.history__item-remove {
+.history__icon-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border: none;
   border-radius: 8px;
   background: transparent;
   color: var(--color-text-tertiary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
 }
 
-.history__item-remove:hover {
+.history__icon-btn:hover {
+  background: var(--color-primary-ring);
+  color: var(--color-primary);
+}
+
+.history__icon-btn--danger:hover {
   background: var(--color-danger-bg);
   color: var(--color-danger);
 }
@@ -362,5 +402,12 @@ defineExpose({ addToHistory, updateClicks })
 
 .list-move {
   transition: transform 0.3s ease;
+}
+
+@media (max-width: 540px) {
+  .history__actions {
+    flex-direction: column;
+    gap: 0.125rem;
+  }
 }
 </style>
