@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import CopyButton from './CopyButton.vue'
+import { getUrlStats } from '../services/urlApi.js'
 
 const emit = defineEmits(['select'])
 
@@ -8,7 +9,20 @@ const history = ref([])
 
 onMounted(() => {
   loadHistory()
+  refreshClickCounts() 
 })
+async function refreshClickCounts() {
+  const results = await Promise.allSettled(
+    history.value.map(item => getUrlStats(item.shortUrl))
+  )
+  results.forEach((res, i) => {
+    if (res.status === 'fulfilled') {
+      history.value[i].clickCount = res.value.totalClicks ?? 0
+    }
+  })
+  saveHistory()
+  }
+
 
 function loadHistory() {
   try {
