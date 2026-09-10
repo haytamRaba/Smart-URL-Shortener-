@@ -3,7 +3,6 @@ import { ref, computed, onMounted } from 'vue'
 import './style.css'
 import UrlShortener from './components/UrlShortener.vue'
 import StatsPage from './components/StatsPage.vue'
-import ThemeToggle from './components/ThemeToggle.vue'
 
 const statsUrl = ref('')
 
